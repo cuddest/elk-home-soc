@@ -66,7 +66,7 @@ A reproducible, containerized SOC-style laboratory for collecting, normalizing, 
 
 The repository is the implementation layer. The portfolio article can be the narrative/documentation layer: explain the problem, architecture, telemetry sources, simulated-vs-real modes, data pipeline, detection logic, investigations, hardening, and lessons learned. Add the final article URL here when published.
 
-> Portfolio article: `TODO — add published article URL`
+> Portfolio article: `https://cuddest.github.io/cuddest/writeups/elk-security-monitoring.html`
 
 ## Documentation
 
