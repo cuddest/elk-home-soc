@@ -1,0 +1,69 @@
+filebeat.inputs:
+  - type: filestream
+    id: nginx
+    enabled: true
+    paths: [/logs/nginx/access.log]
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    fields_under_root: true
+    fields:
+      event.dataset: lab.nginx
+
+  - type: filestream
+    id: app
+    enabled: true
+    paths: [/logs/app/requests.log]
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    fields_under_root: true
+    fields:
+      event.dataset: lab.application
+
+  - type: filestream
+    id: ssh
+    enabled: true
+    paths: [/logs/ssh/auth.log]
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    fields_under_root: true
+    fields:
+      event.dataset: lab.ssh
+
+  - type: filestream
+    id: windows
+    enabled: true
+    paths: [/logs/windows/events.log]
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    fields_under_root: true
+    fields:
+      event.dataset: lab.windows
+
+  - type: filestream
+    id: detections
+    enabled: true
+    paths: [/logs/detections/*.jsonl]
+    parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+    fields_under_root: true
+    fields:
+      event.dataset: lab.detection
+
+processors:
+  - add_host_metadata: ~
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  ssl.certificate_authorities: ["/usr/share/filebeat/certs/ca.crt"]
+
+logging.level: info

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test dependencies
+        run: python -m pip install -r tools/requirements.txt
+
+      - name: Python tests
+        run: python -m pytest -q
+
+      - name: Shell syntax checks
+        run: |
+          bash -n scripts/bootstrap-certs.sh
+          bash -n scripts/status.sh
+          bash -n scripts/smoke-test.sh
+          bash -n scripts/reset-lab.sh
+          sh -n scripts/security-init.sh
+          sh -n generators/ssh/generate_ssh_logs.sh
+
+      - name: Docker Compose validation
+        run: |
+          cp .env.example .env
+          ./scripts/bootstrap-certs.sh
+          docker compose config

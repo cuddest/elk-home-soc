@@ -1,8 +1,12 @@
-# Downloaded binaries — grab winlogbeat from Elastic directly
-winlogbeat-*.zip
-*.zip
-
-# Generated log data
-logs/
+.env
+certs/
+data/
+.pytest_cache/
 __pycache__/
 *.pyc
+.venv/
+.vscode/
+.idea/
+.DS_Store
+screenshots/generated/
+/data/logs/ssh-real/

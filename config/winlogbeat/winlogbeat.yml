@@ -1,0 +1,24 @@
+# Optional native-Windows collector configuration.
+# This is not started by the default Linux/macOS lab compose file.
+# Copy it to a Windows host, place the lab CA at C:\ProgramData\Winlogbeat\certs\ca.crt,
+# and point the output to a Logstash listener reachable from that host.
+
+winlogbeat.event_logs:
+  - name: Security
+    ignore_older: 72h
+  - name: System
+    ignore_older: 72h
+
+processors:
+  - add_host_metadata: ~
+  - add_fields:
+      target: lab
+      fields:
+        synthetic: false
+        source: winlogbeat
+
+output.logstash:
+  hosts: ["YOUR-LOGSTASH-HOST:5044"]
+  ssl.certificate_authorities: ["C:/ProgramData/Winlogbeat/certs/ca.crt"]
+
+logging.level: info

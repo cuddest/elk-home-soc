@@ -1,0 +1,171 @@
+name: elk-security-monitoring-lab
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION:-9.4.4}
+    restart: unless-stopped
+    environment:
+      - node.name=elasticsearch
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/stack.crt
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/stack.key
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certs/stack.crt
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certs/stack.key
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env}
+      - ES_JAVA_OPTS=-Xms768m -Xmx768m
+    ports:
+      - "127.0.0.1:${ES_PORT:-9200}:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+      - ./certs:/usr/share/elasticsearch/config/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u elastic:$${ELASTIC_PASSWORD} https://localhost:9200/_cluster/health?wait_for_status=yellow >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  security-init:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env}
+      LOGSTASH_PASSWORD: ${LOGSTASH_PASSWORD:?Set LOGSTASH_PASSWORD in .env}
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:?Set KIBANA_SYSTEM_PASSWORD in .env}
+    volumes:
+      - ./scripts/security-init.sh:/security-init.sh:ro
+      - ./certs:/certs:ro
+    entrypoint: ["/bin/sh", "/security-init.sh"]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION:-9.4.4}
+    restart: unless-stopped
+    depends_on:
+      security-init:
+        condition: service_completed_successfully
+    environment:
+      LS_JAVA_OPTS: "-Xms384m -Xmx384m"
+      LOGSTASH_PASSWORD: ${LOGSTASH_PASSWORD:?Set LOGSTASH_PASSWORD in .env}
+    expose:
+      - "5044"
+    volumes:
+      - ./config/logstash/pipelines/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - ./config/logstash/pipelines/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./certs:/usr/share/logstash/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9600/_node/pipelines >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION:-9.4.4}
+    restart: unless-stopped
+    depends_on:
+      security-init:
+        condition: service_completed_successfully
+    environment:
+      SERVER_NAME: kibana
+      SERVER_PUBLICBASEURL: https://localhost:5601
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/certs/stack.crt
+      SERVER_SSL_KEY: /usr/share/kibana/config/certs/stack.key
+      SERVER_SSL_CERTIFICATEAUTHORITIES: /usr/share/kibana/config/certs/ca.crt
+      ELASTICSEARCH_HOSTS: '["https://elasticsearch:9200"]'
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:?Set KIBANA_SYSTEM_PASSWORD in .env}
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: '["/usr/share/kibana/config/certs/ca.crt"]'
+      TELEMETRY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - ./certs:/usr/share/kibana/config/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --insecure --fail https://localhost:5601/api/status >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 45s
+
+  app:
+    build:
+      context: ./app
+    restart: unless-stopped
+    expose:
+      - "5000"
+    volumes:
+      - ./data/logs/app:/logs/app
+    environment:
+      APP_ENV: lab
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=2)\" >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/logs/nginx:/logs/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  ssh-simulator:
+    profiles: ["simulation"]
+    image: python:3.13-alpine
+    restart: unless-stopped
+    volumes:
+      - ./generators/ssh/generate_ssh_logs.sh:/generate_ssh_logs.sh:ro
+      - ./data/logs/ssh:/logs/ssh
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["touch /logs/ssh/auth.log && tail -f /dev/null"]
+
+  windows-simulator:
+    profiles: ["simulation"]
+    image: python:3.13-alpine
+    restart: unless-stopped
+    volumes:
+      - ./generators/windows/generate_windows_events.py:/generate_windows_events.py:ro
+      - ./data/logs/windows:/logs/windows
+    entrypoint: ["python", "/generate_windows_events.py", "--daemon"]
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${STACK_VERSION:-9.4.4}
+    restart: unless-stopped
+    user: root
+    depends_on:
+      logstash:
+        condition: service_healthy
+      nginx:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./data/logs:/logs:ro
+      - ./data/logs/ssh-real:/logs/ssh-real:ro
+      - ./certs:/usr/share/filebeat/certs:ro
+
+volumes:
+  esdata:

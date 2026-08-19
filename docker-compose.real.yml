@@ -1,0 +1,26 @@
+services:
+  logstash:
+    ports:
+      - "${LOGSTASH_BEATS_BIND:-127.0.0.1}:${LOGSTASH_BEATS_PORT:-5044}:5044"
+
+  # A real OpenSSH daemon for lab-only SSH testing.
+  # Logs are emitted as structured JSON by a lightweight wrapper and then
+  # collected by the same Filebeat -> Logstash path as host logs.
+  ssh-server:
+    image: alpine:3.22
+    restart: unless-stopped
+    profiles: ["real-ssh"]
+    environment:
+      SSH_USER: ${SSH_TEST_USER:-labuser}
+      SSH_PASSWORD: ${SSH_TEST_PASSWORD:-LabOnlyChangeMe!}
+    volumes:
+      - ./docker/ssh-server/entrypoint.sh:/entrypoint.sh:ro
+      - ./data/logs/ssh-real:/logs/ssh:rw
+    ports:
+      - "127.0.0.1:${SSH_PORT:-2222}:22"
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 22"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
