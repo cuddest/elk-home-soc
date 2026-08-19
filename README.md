@@ -367,4 +367,8 @@ docker compose up -d
 
 ## License
 
-Choose a license before publishing to GitHub. MIT is a reasonable default for a portfolio project if you want broad reuse.
+This project is released under the [MIT License](LICENSE).
+
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the project, subject to the conditions of the license.
+
+See the [LICENSE](LICENSE) file for the full terms.
