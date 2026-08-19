@@ -1,0 +1,8 @@
+# Downloaded binaries — grab winlogbeat from Elastic directly
+winlogbeat-*.zip
+*.zip
+
+# Generated log data
+logs/
+__pycache__/
+*.pyc
