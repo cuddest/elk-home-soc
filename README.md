@@ -1,5 +1,5 @@
 # ELK Security Monitoring Lab
-
+(You can read more about it here in this article ! [Read more about it](https://cuddest.github.io/cuddest/writeups/elk-security-monitoring.html)
 A reproducible, containerized SOC-style laboratory for collecting, normalizing, detecting, and investigating Linux, web, application, and Windows-security telemetry with the Elastic Stack.
 
 ## What this project demonstrates
